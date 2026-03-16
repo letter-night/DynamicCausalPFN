@@ -1,0 +1,30 @@
+# @package _global_
+dataset:
+  coeff: 10.0
+
+model:
+  encoder:
+    optimizer:
+      learning_rate: 0.01
+    batch_size: 128
+    seq_hidden_units: 20
+    br_size: 20
+    fc_hidden_units: 10
+    dropout_rate: 0.1
+    num_layer: 1
+
+  train_decoder: True
+  decoder:
+    optimizer:
+      learning_rate: 0.001
+    batch_size: 1024
+    br_size: 2
+    fc_hidden_units: 6
+    dropout_rate: 0.1
+    num_layer: 1
+    seq_hidden_units: 20
+
+exp:
+  weights_ema: False
+  balancing: grad_reverse
+  max_epochs: 50

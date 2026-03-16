@@ -1,0 +1,22 @@
+# @package _global_
+dataset:
+  coeff: 10.0
+
+model:
+  dynamic_causal_pfn:
+    optimizer:
+      learning_rate: 0.001
+    batch_size: 128
+    num_layer: 4
+    seq_hidden_units: 64
+    hr_size: 16
+    fc_hidden_units: 64
+    dropout_rate: 0.1
+    num_heads: 4
+
+  # self_positional_encoding:
+  #   absolute
+
+
+exp:
+  max_epochs: 100
