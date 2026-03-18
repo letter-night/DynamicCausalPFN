@@ -837,6 +837,9 @@ class PretrainCancerDatasetCollection(SyntheticDatasetCollection):
             treatment_mode=treatment_mode,
         )
 
+        self.autoregressive = True
+        self.has_vitals = False
+
         self.pretraining_scaling_params = self.train_f.get_scaling_params()
         self.train_scaling_params = self.pretraining_scaling_params
 

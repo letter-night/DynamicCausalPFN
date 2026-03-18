@@ -56,7 +56,7 @@ class DynamicCausalPFN(EDCT):
         assert self.autoregressive  # prev_outcomes are obligatory
 
         self.basic_block_cls = TransformerMultiInputBlock
-        self._init_specific(args.model.multi)
+        self._init_specific(args.model.dynamic_causal_pfn)
         self.save_hyperparameters(args)
 
     def _init_specific(self, sub_args: DictConfig):
@@ -105,14 +105,18 @@ class DynamicCausalPFN(EDCT):
 
     def prepare_data(self) -> None:
         if self.dataset_collection is not None and not self.dataset_collection.processed_data_multi:
-            self.dataset_collection.process_data_multi()
+            from src.data.cancer_sim.dataset import PretrainCancerDatasetCollection
+            if isinstance(self.dataset_collection, PretrainCancerDatasetCollection):
+                self.dataset_collection.process_data_pretrain()
+            else:
+                self.dataset_collection.process_data_multi()
         if self.bce_weights is None and self.hparams.exp.bce_weight:
             self._calculate_bce_weights()
 
     def forward(self, batch, detach_treatment=False):
         fixed_split = batch['future_past_split'] if 'future_past_split' in batch else None
 
-        if self.training and self.hparams.model.multi.augment_with_masked_vitals and self.has_vitals:
+        if self.training and self.hparams.model.dynamic_causal_pfn.augment_with_masked_vitals and self.has_vitals:
             # Augmenting original batch with vitals-masked copy
             assert fixed_split is None  # Only for training data
             fixed_split = torch.empty((2 * len(batch['active_entries']),)).type_as(batch['active_entries'])

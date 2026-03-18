@@ -21,7 +21,7 @@ model:
         - 8
         - 16
         - 64
-      hr_size:
+      br_size:
         - 8
         - 16
         - 32

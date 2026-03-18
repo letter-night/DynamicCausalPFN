@@ -1,18 +1,20 @@
 # @package _global_
-# Best hyperparameters from pretraining tuning on 10 datasets (val_rmse_all=13.33)
-# Optimized for pretraining on 100 datasets
-# Note: values below are ACTUAL computed values, not multipliers
+# Best hyperparameters from pretraining tuning on 1000 synthetic datasets (CT backbone)
+# Trial 00009: val_rmse_all=37.10 (best of 19 completed trials)
+# Note: seq_hidden_units and br_size are multipliers of input_size (=2 for cancer_sim_pretrain)
+# Note: fc_hidden_units is a multiplier of computed br_size
+# Actual computed values: seq_hidden=128, br=128, fc=1024
 model:
   dynamic_causal_pfn:
     optimizer:
-      learning_rate: 0.001
+      learning_rate: 0.0001
     batch_size: 128
-    num_layer: 2
+    num_layer: 6
     seq_hidden_units: 64
-    hr_size: 16
-    fc_hidden_units: 64
-    dropout_rate: 0.2
-    num_heads: 4
+    br_size: 64
+    fc_hidden_units: 8
+    dropout_rate: 0.1
+    num_heads: 8
 
 exp:
   max_epochs: 100

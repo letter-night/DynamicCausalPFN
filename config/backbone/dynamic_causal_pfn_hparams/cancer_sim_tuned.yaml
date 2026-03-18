@@ -9,7 +9,7 @@ model:
     batch_size: 128
     num_layer: 4
     seq_hidden_units: 64
-    hr_size: 16
+    br_size: 16
     fc_hidden_units: 64
     dropout_rate: 0.1
     num_heads: 4

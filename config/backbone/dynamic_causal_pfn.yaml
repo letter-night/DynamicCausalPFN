@@ -1,16 +1,16 @@
 # @package _global_
 model:
   name: DynamicCausalPFN
-  dynamic_causal_pfn:                                  # Missing hyperparameters are to be filled in command line / with tune_hparams = True / selected with +backbone/ct_hparams=...
+  dynamic_causal_pfn:                                  # Missing hyperparameters are to be filled in command line / with tune_hparams = True / selected with +backbone/dynamic_causal_pfn_hparams=...
     _target_: src.models.dynamic_causal_pfn.DynamicCausalPFN
     max_seq_length: ${sum:${dataset.max_seq_length},${dataset.projection_horizon}}  # Will be calculated dynamically
     seq_hidden_units:                    # transformer hidden units (d_h / d_model)
-    hr_size:                            # hidden representation size
+    br_size:                             # balanced representation size
     fc_hidden_units:
     dropout_rate:                        # Dropout between transformer layers + output layers + attentional dropout
     num_layer: 1
-    num_heads: 1
-    max_grad_norm: 0.0
+    num_heads: 2
+    max_grad_norm:
     batch_size:
     attn_dropout: True
     disable_cross_attention: False
@@ -19,14 +19,16 @@ model:
     projection_horizon: 0
 
     self_positional_encoding:
-      absolute: True 
-      trainable: False 
-      # max_relative_position: 15
+      absolute: False
+      trainable: True
+      max_relative_position: 15
     optimizer:
       optimizer_cls: adam
       learning_rate:
       weight_decay: 0.0
       lr_scheduler: False
+
+    augment_with_masked_vitals: True
 
     pretrained_ckpt:                   # Path to pretrained checkpoint for transfer (null = train from scratch)
     transfer_mode:                     # zero_shot / few_shot / fine_tune (null = train from scratch)
@@ -38,4 +40,6 @@ model:
     resources_per_trial:
 
 exp:
-  update_alpha: False
+  weights_ema: True
+  balancing: domain_confusion
+  alpha: 0.01

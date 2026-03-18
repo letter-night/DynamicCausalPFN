@@ -20,7 +20,7 @@ torch.set_default_dtype(torch.double)
 @hydra.main(config_name=f'config.yaml', config_path='../config/')
 def main(args: DictConfig):
     """
-    Training / evaluation script for DynamicCausalPFN (GT backbone)
+    Training / evaluation script for DynamicCausalPFN (CT backbone)
     Args:
         args: arguments of run as DictConfig
 
@@ -246,10 +246,10 @@ def main(args: DictConfig):
             test_rmse = pfn_model.get_normalised_n_step_rmses(dataset_collection.test_cf_treatment_seq)
         elif hasattr(dataset_collection, 'test_f_multi'):  # Test n_step_factual rmse
             test_rmse = pfn_model.get_normalised_n_step_rmses(dataset_collection.test_f_multi)
-        test_rmses = {f'{t+1}-step': test_rmse}
+        test_rmses = {f'{k+2}-step': v for (k, v) in enumerate(test_rmse)}
         logger.info(f'Test normalised RMSE (n-step prediction): {test_rmses}')
 
-        decoder_results.update({('decoder_test_rmse_' + k): v for (k, v) in test_rmses.items()})
+        decoder_results.update({('decoder_test_rmse_' + k): float(v) for (k, v) in test_rmses.items()})
 
         mlf_logger.log_metrics(decoder_results) if args.exp.logging else None
         results.update(decoder_results)

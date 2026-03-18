@@ -7,12 +7,14 @@ via zero-shot, few-shot, and fine-tuning — comparing against baselines trained
 
 ## Current Status
 - **Completed:** Phase 1 (checkpoint save/reload), Phase 2 (transfer evaluation), Phase 3 setup (tuning scripts/configs)
-- **In progress:** Phase 3 execution (pretraining HP tuning → full pretrain → transfer sweep)
+- **Backbone changed:** GT → CT (Causal Transformer). Phase 3 needs re-execution with CT backbone.
+- **In progress:** Phase 3 re-execution (pretraining HP tuning → full pretrain → transfer sweep) with CT backbone
 
 ## Architecture
 - **Framework:** PyTorch Lightning 1.4.5, Hydra configs, MLflow logging
-- **Base class:** `src/models/time_varying_model.py` → `TimeVaryingCausalModel`
-- **Main model:** `src/models/dynamic_causal_pfn.py` → `DynamicCausalPFN` (transformer-based, G-computation heads)
+- **Base class:** `src/models/time_varying_model.py` → `TimeVaryingCausalModel` → `BRCausalModel`
+- **Backbone base:** `src/models/edct.py` → `EDCT` (inherited from `BRCausalModel`)
+- **Main model:** `src/models/dynamic_causal_pfn.py` → `DynamicCausalPFN` (CT backbone, balanced representations, domain confusion)
 - **Training script:** `runnables/train_dynamic_causal_pfn.py`
 
 ## Key Data Flow
@@ -44,7 +46,11 @@ PYTHONPATH=. python3 runnables/train_dynamic_causal_pfn.py \
 
 ## Important Implementation Details
 - `projection_horizon=0`: 1-step-ahead factual prediction (encoder training)
-- `projection_horizon>0`: multi-step G-computation with pseudo-outcomes
+- `projection_horizon>0`: multi-step autoregressive predictions
+- CT backbone uses balanced representations with domain confusion balancing
+- Config key `model.dynamic_causal_pfn` with `br_size` (balanced representation size)
+- Relative positional encoding (trainable, max_relative_position=15)
+- Vitals augmentation enabled (`augment_with_masked_vitals: True`)
 - Treatment is binary (radiotherapy on/off), encoded as one-hot `[1,0]`/`[0,1]` in multiclass mode
 - Model uses `torch.double` precision by default
 - Pretraining uses `PretrainCancerDatasetCollection`; downstream uses `SyntheticCancerDatasetCollection`
