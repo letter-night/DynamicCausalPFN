@@ -16,6 +16,10 @@ model:
     disable_cross_attention: False
     isolate_subnetwork: _
 
+    gmm_n_components: 5
+    gmm_min_sigma: 1.0e-3
+    pi_temp: 1.0 
+
     projection_horizon: 0
 
     self_positional_encoding:
@@ -40,6 +44,5 @@ model:
     resources_per_trial:
 
 exp:
-  weights_ema: True
-  balancing: domain_confusion
-  alpha: 0.01
+  weights_ema: False 
+

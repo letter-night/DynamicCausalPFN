@@ -10,16 +10,16 @@ import numpy as np
 from typing import Union
 
 
-from src.models.edct import EDCT
+from src.models.dcp import DCP
 from src.models.utils_transformer import TransformerMultiInputBlock
 from src.data import SyntheticDatasetCollection, RealDatasetCollection
-from src.models.utils import BRTreatmentOutcomeHead
+from src.models.utils import GMMOutcomeHead
 from src.models.utils import forward_fill
 
 logger = logging.getLogger(__name__)
 
 
-class DynamicCausalPFN(EDCT):
+class DynamicCausalPFN(DCP):
     """
     (CT) backbone
     """
@@ -32,7 +32,7 @@ class DynamicCausalPFN(EDCT):
                  autoregressive: bool = None,
                  has_vitals: bool = None,
                  projection_horizon: int = None,
-                 bce_weights: np.array = None, **kwargs):
+                 **kwargs):
         """
         Args:
             args: DictConfig of model hyperparameters
@@ -43,7 +43,7 @@ class DynamicCausalPFN(EDCT):
             bce_weights: Re-weight BCE if used
             **kwargs: Other arguments
         """
-        super().__init__(args, dataset_collection, autoregressive, has_vitals, bce_weights)
+        super().__init__(args, dataset_collection, autoregressive, has_vitals)
 
         if self.dataset_collection is not None:
             self.projection_horizon = self.dataset_collection.projection_horizon
@@ -94,9 +94,20 @@ class DynamicCausalPFN(EDCT):
                                       disable_cross_attention=sub_args.disable_cross_attention,
                                       isolate_subnetwork=sub_args.isolate_subnetwork) for _ in range(self.num_layer)])
 
-            self.br_treatment_outcome_head = BRTreatmentOutcomeHead(self.seq_hidden_units, self.br_size,
-                                                                    self.fc_hidden_units, self.dim_treatments, int(self.dim_outcome / 2),
-                                                                    self.alpha, self.update_alpha, self.balancing)
+            gmm_n_components = sub_args.gmm_n_components if 'gmm_n_components' in sub_args else 5
+            gmm_min_sigma = sub_args.gmm_min_sigma if 'gmm_min_sigma' in sub_args else 1e-3
+            pi_temp = sub_args.pi_temp if 'pi_temp' in sub_args else 1.0 
+
+            self.gmm_outcome_head = GMMOutcomeHead(
+                self.seq_hidden_units, 
+                self.br_size,
+                self.fc_hidden_units, 
+                self.dim_treatments, 
+                int(self.dim_outcome / 2),
+                n_components=gmm_n_components,
+                min_sigma=gmm_min_sigma,
+                pi_temp=pi_temp,
+            )
 
             # self.last_layer_norm = LayerNorm(self.seq_hidden_units)
         except MissingMandatoryValue:
@@ -110,8 +121,7 @@ class DynamicCausalPFN(EDCT):
                 self.dataset_collection.process_data_pretrain()
             else:
                 self.dataset_collection.process_data_multi()
-        if self.bce_weights is None and self.hparams.exp.bce_weight:
-            self._calculate_bce_weights()
+
 
     def forward(self, batch, detach_treatment=False):
         fixed_split = batch['future_past_split'] if 'future_past_split' in batch else None
@@ -136,10 +146,10 @@ class DynamicCausalPFN(EDCT):
         active_entries = batch['active_entries']
 
         br = self.build_br(prev_treatments, vitals, prev_outputs, static_features, active_entries, fixed_split)
-        treatment_pred = self.br_treatment_outcome_head.build_treatment(br, detach_treatment)
-        outcome_pred = self.br_treatment_outcome_head.build_outcome(br, curr_treatments)
+        outcome_pred, pi, mu, sigma = self.gmm_outcome_head.build_outcome(
+            br, curr_treatments, return_gmm_params=True)
 
-        return treatment_pred, outcome_pred, br
+        return outcome_pred, br, (pi, mu, sigma)
 
     def build_br(self, prev_treatments, vitals, prev_outputs, static_features, active_entries, fixed_split):
 
@@ -185,7 +195,7 @@ class DynamicCausalPFN(EDCT):
                 x = (x_o + x_t + x_v) / 3
 
         output = self.output_dropout(x)
-        br = self.br_treatment_outcome_head.build_br(output)
+        br = self.gmm_outcome_head.build_br(output)
         return br
 
     def get_autoregressive_predictions(self, dataset: Dataset) -> np.array:

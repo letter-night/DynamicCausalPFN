@@ -15,6 +15,7 @@ from pytorch_lightning import Trainer
 from torch_ema import ExponentialMovingAverage
 from typing import List
 from tqdm import tqdm
+import torch.distributions as D 
 
 from src.data import SyntheticDatasetCollection, RealDatasetCollection
 from src.models.utils import grad_reverse, BRTreatmentOutcomeHead, AlphaRise, bce
@@ -54,7 +55,9 @@ def train_eval_factual(args: dict, train_f: Dataset, val_f: Dataset, orig_hparam
                       progress_bar_refresh_rate=0,
                       gradient_clip_val=new_params.model[model_cls.model_type]['max_grad_norm']
                       if 'max_grad_norm' in new_params.model[model_cls.model_type] else None,
-                      callbacks=[AlphaRise(rate=new_params.exp.alpha_rate)])
+                      callbacks=[AlphaRise(rate=new_params.exp.alpha_rate)]
+                                if hasattr(new_params.exp, 'alpha_rate') and
+                                   hasattr(model, 'br_treatment_outcome_head') else [])
     trainer.fit(model, train_dataloader=train_loader)
 
     if tuning_criterion == 'rmse':
@@ -559,6 +562,159 @@ class BRCausalModel(TimeVaryingCausalModel):
         data_loader = DataLoader(dataset, batch_size=self.hparams.dataset.val_batch_size, shuffle=False)
         _, br = [torch.cat(arrs) for arrs in zip(*self.trainer.predict(self, data_loader))]
         return br.numpy()
+
+    def get_predictions(self, dataset: Dataset) -> np.array:
+        logger.info(f'Predictions for {dataset.subset_name}.')
+        # Creating Dataloader
+        data_loader = DataLoader(dataset, batch_size=self.hparams.dataset.val_batch_size, shuffle=False)
+        outcome_pred, _ = [torch.cat(arrs) for arrs in zip(*self.trainer.predict(self, data_loader))]
+        return outcome_pred.numpy()
+
+
+
+class GMMCausalModel(TimeVaryingCausalModel):
+    """
+    Abstract class for models, estimating counterfactual outcomes over time with GMM head
+    """
+
+    model_type = None  # Will be defined in subclasses
+    possible_model_types = None   # Will be defined in subclasses
+    tuning_criterion = 'rmse' # keep RMSE for evaluation / tuning
+
+    def __init__(self, args: DictConfig,
+                 dataset_collection: Union[SyntheticDatasetCollection, RealDatasetCollection] = None,
+                 autoregressive: bool = None,
+                 has_vitals: bool = None,
+                 **kwargs):
+        """
+        Args:
+            args: DictConfig of model hyperparameters
+            dataset_collection: Dataset collection
+            autoregressive: Flag of including previous outcomes to modelling
+            has_vitals: Flag of vitals in dataset
+            **kwargs: Other arguments
+        """
+        super().__init__(args, dataset_collection, autoregressive, has_vitals)
+
+
+    def configure_optimizers(self):
+        if not self.hparams.exp.weights_ema:  
+            optimizer = self._get_optimizer(list(self.named_parameters()))
+
+            if self.hparams.model[self.model_type]['optimizer']['lr_scheduler']:
+                return self._get_lr_schedulers(optimizer)
+
+            return optimizer
+        
+        else:
+            params = [(k, v) for k, v in dict(self.named_parameters()).items()]
+            self.ema = ExponentialMovingAverage([par[1] for par in params],
+                                                decay=self.hparams.exp.beta)
+            optimizer = self._get_optimizer(list(self.named_parameters()))
+
+            if self.hparams.model[self.model_type]['optimizer']['lr_scheduler']:
+                return self._get_lr_schedulers(optimizer)
+
+            return optimizer 
+
+    def optimizer_step(self, epoch: int = None, batch_idx: int = None, optimizer=None, optimizer_idx: int = None, *args,
+                       **kwargs) -> None:
+        super().optimizer_step(epoch, batch_idx, optimizer, optimizer_idx, *args, **kwargs)
+        if self.hparams.exp.weights_ema:
+            self.ema.update()
+    
+    @staticmethod
+    def _valid_mask(outputs, active_entries):
+        # outputs: [B, T, D], active_entries: [B, T, 1]
+        return active_entries.squeeze(-1).bool() & torch.isfinite(outputs).all(dim=-1)
+    
+    @staticmethod
+    def gmm_nll_loss(pi, mu, sigma, outputs, active_entries):
+        """
+        pi: [B, T, K]
+        mu: [B, T, K, D]
+        sigma: [B, T, K, D]
+        outputs: [B, T, D]
+        """
+        valid_mask = GMMCausalModel._valid_mask(outputs, active_entries)
+
+        if not valid_mask.any():
+            return mu.sum() * 0.0
+        
+        clean_y = outputs[valid_mask] # [N, D]
+        clean_pi = pi[valid_mask] # [N, K]
+        clean_mu = mu[valid_mask] # [N, K, D]
+        clean_sigma = sigma[valid_mask] # [N, K, D]
+
+        clean_pi = torch.clamp(clean_pi, min=1e-12)
+        clean_pi = clean_pi / clean_pi.sum(dim=-1, keepdim=True)
+        clean_sigma = torch.clamp(clean_sigma, min=0.1)
+
+        mix = D.Categorical(probs=clean_pi)
+        comp = D.Independent(D.Normal(loc=clean_mu, scale=clean_sigma), 1)
+        gmm = D.MixtureSameFamily(mix, comp)
+
+        return -gmm.log_prob(clean_y).mean()
+    
+    @staticmethod 
+    def _unpack_forward(forward_out):
+        if len(forward_out) != 3:
+            raise ValueError(
+                "GMMCausalModel forward() must return (outcome_pred, br, (pi, mu, sigma))."
+            )
+        outcome_pred, br, gmm_params = forward_out
+        pi, mu, sigma = gmm_params
+        return outcome_pred, br, pi, mu, sigma 
+    
+    def on_fit_start(self) -> None:
+        if self.trainer.logger is not None:
+            self.trainer.logger.filter_submodels = list(self.possible_model_types - {self.model_type})
+
+    def on_fit_end(self) -> None:
+        if self.trainer.logger is not None:
+            self.trainer.logger.filter_submodels = list(self.possible_model_types)
+
+
+    def training_step(self, batch, batch_ind, optimizer_idx=0):
+        for par in self.parameters():
+            par.requires_grad = True
+        
+        outcome_pred, br, pi, mu, sigma = self._unpack_forward(self(batch))
+        
+        loss = self.gmm_nll_loss(pi, mu, sigma, batch['outputs'], batch['active_entries'])
+
+        self.log(f'{self.model_type}_train_loss', loss, on_epoch=True, on_step=False, sync_dist=True)
+        self.log(f'{self.model_type}_train_nll_loss', loss, on_epoch=True, on_step=False, sync_dist=True)
+
+        return loss 
+
+
+    def test_step(self, batch, batch_ind, **kwargs):
+        if self.hparams.exp.weights_ema:
+            with self.ema.average_parameters():
+                outcome_pred, br, pi, mu, sigma = self._unpack_forward(self(batch))
+        else:
+            outcome_pred, br, pi, mu, sigma = self._unpack_forward(self(batch))
+        
+        loss = self.gmm_nll_loss(pi, mu, sigma, batch['outputs'], batch['active_entries'])
+
+        subset_name = self.test_dataloader().dataset.subset_name 
+        self.log(f'{self.model_type}_{subset_name}_loss', loss, on_epoch=True, on_step=False, sync_dist=True)
+        self.log(f'{self.model_type}_{subset_name}_nll_loss', loss, on_epoch=True, on_step=False, sync_dist=True)
+
+
+    def predict_step(self, batch, batch_idx, dataset_idx=None):
+        """
+        Returns deterministic prediction for RMSE evaluation:
+        mixture mean from the GMM head.
+        """
+        if self.hparams.exp.weights_ema:
+            with self.ema.average_parameters():
+                outcome_pred, br, _, _, _ = self._unpack_forward(self(batch))
+        else:
+            outcome_pred, br, _, _, _ = self._unpack_forward(self(batch))
+        return outcome_pred.cpu(), br.cpu()
+
 
     def get_predictions(self, dataset: Dataset) -> np.array:
         logger.info(f'Predictions for {dataset.subset_name}.')

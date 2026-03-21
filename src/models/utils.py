@@ -225,3 +225,72 @@ def clip_normalize_stabilized_weights(stabilized_weights, active_entries, multip
 
     sw_tilde[~np.squeeze(active_entries)] = 0.0
     return sw_tilde
+
+
+
+class GMMOutcomeHead(nn.Module):
+    """Used by DCP, DynamicCausalPFN
+    
+    Train with GMM-NLL.
+    Evaluate with the mixture mean.
+    """
+
+    def __init__(self, seq_hidden_units, br_size, fc_hidden_units, dim_treatments, dim_outcome,
+                 n_components=5, min_sigma=1e-3, pi_temp=1.0,):
+        super().__init__()
+
+        self.seq_hidden_units = seq_hidden_units
+        self.br_size = br_size
+        self.fc_hidden_units = fc_hidden_units
+        self.dim_treatments = dim_treatments
+        self.dim_outcome = dim_outcome
+
+        self.n_components = n_components
+        self.min_sigma = min_sigma
+        self.pi_temp = pi_temp
+
+        self.linear1 = nn.Linear(self.seq_hidden_units, self.br_size)
+        self.elu1 = nn.ELU()
+
+        self.linear4 = nn.Linear(self.br_size + self.dim_treatments, self.fc_hidden_units)
+        self.elu3 = nn.ELU()
+
+        # GMM parameters
+        self.pi_layer = nn.Linear(self.fc_hidden_units, self.n_components)
+        self.mu_layer = nn.Linear(self.fc_hidden_units, self.n_components * self.dim_outcome)
+        self.sigma_layer = nn.Linear(self.fc_hidden_units, self.n_components * self.dim_outcome)
+
+    def build_br(self, seq_output):
+        br = self.elu1(self.linear1(seq_output))
+        return br
+    
+    def _build_hidden(self, br, current_treatment):
+        x = torch.cat((br, current_treatment), dim=-1)
+        x = self.elu3(self.linear4(x))
+        return x 
+    
+    def build_gmm_params(self, br, current_treatment):
+        h = self._build_hidden(br, current_treatment)
+
+        logits = self.pi_layer(h) / self.pi_temp
+        pi = F.softmax(logits, dim=-1)
+        pi = torch.clamp(pi, min=1e-12)
+        pi = pi / pi.sum(dim=-1, keepdim=True)
+
+        mu = self.mu_layer(h).view(*h.shape[:-1], self.n_components, self.dim_outcome)
+
+        sigma = self.sigma_layer(h)
+        sigma = F.softplus(sigma).view(*h.shape[:-1], self.n_components, self.dim_outcome)
+        sigma = torch.clamp(sigma, min=self.min_sigma)
+
+        return pi, mu, sigma
+    
+    def build_outcome(self, br, current_treatment, return_gmm_params=False):
+        pi, mu, sigma = self.build_gmm_params(br, current_treatment)
+
+        # mixture_mean -> used for RMSE evaluation  / autoregressive rollout
+        outcome = (pi.unsqueeze(-1) * mu).sum(dim=-2)
+
+        if return_gmm_params:
+            return outcome, pi, mu, sigma
+        return outcome 
