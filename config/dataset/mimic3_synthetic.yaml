@@ -15,12 +15,9 @@ dataset:
     test: 0.2
   val_batch_size: 512                                      # Batch size for evaluation
   treatment_mode: multilabel
-  treatment_sequence: [[0., 1.],                        # treatment sequence to train on
-                       [0., 1.],
-                       [0., 1.],
-                       [0., 1.],
-                       [0., 1.],
-                       [0., 1.]]
+  treatment_sequence: [[1.],                        # treatment sequence to train on
+                       [1.],
+                       [1.]]
 
   autoregressive: True
 
@@ -71,7 +68,7 @@ dataset:
         gamma: 1.
         scale: 30.0
       window: 3
-      conf_outcome_weight:  0.
+      conf_outcome_weight:  2.5 
       conf_vars_weight: 2.5
       bias: 0.0
       full_effect: -1.0

@@ -1,16 +1,17 @@
 # @package _global_
+# Tuned on mimic3_synthetic (2026-03-22)
 dataset:
   max_number: 3000
 
 model:
   multi:
     optimizer:
-      learning_rate: 0.001
+      learning_rate: 0.01
     batch_size: 32
-    seq_hidden_units: 90
-    br_size: 88
-    fc_hidden_units: 44
-    dropout_rate: 0.2
+    seq_hidden_units: 6
+    br_size: 6
+    fc_hidden_units: 3
+    dropout_rate: 0.1
     num_layer: 2
     num_heads: 3
 

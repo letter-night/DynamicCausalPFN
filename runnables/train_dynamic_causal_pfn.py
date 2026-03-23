@@ -42,7 +42,7 @@ def main(args: DictConfig):
     from src.data.cancer_sim.dataset import PretrainCancerDatasetCollection
     from src.data.mimic_iii.semi_synthetic_dataset import PretrainMIMICDatasetCollection
     
-    if isinstance(dataset_collection, PretrainCancerDatasetCollection):
+    if isinstance(dataset_collection, (PretrainCancerDatasetCollection, PretrainMIMICDatasetCollection)):
         dataset_collection.process_data_pretrain()
     else:
         dataset_collection.process_data_multi()

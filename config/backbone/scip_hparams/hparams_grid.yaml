@@ -29,7 +29,7 @@ model:
         - 1.0
         - 2.0
     resources_per_trial:
-      cpu: 2.0
+      cpu: 0.4
       gpu: 0.25
 
 
@@ -124,7 +124,7 @@ model:
         - 2.0
         - 4.0
     resources_per_trial:
-      cpu: 2.0
+      cpu: 0.4
       gpu: 0.25
 
 exp:

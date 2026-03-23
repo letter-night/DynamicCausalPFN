@@ -117,7 +117,8 @@ class DynamicCausalPFN(DCP):
     def prepare_data(self) -> None:
         if self.dataset_collection is not None and not self.dataset_collection.processed_data_multi:
             from src.data.cancer_sim.dataset import PretrainCancerDatasetCollection
-            if isinstance(self.dataset_collection, PretrainCancerDatasetCollection):
+            from src.data.mimic_iii.semi_synthetic_dataset import PretrainMIMICDatasetCollection
+            if isinstance(self.dataset_collection, (PretrainCancerDatasetCollection, PretrainMIMICDatasetCollection)):
                 self.dataset_collection.process_data_pretrain()
             else:
                 self.dataset_collection.process_data_multi()

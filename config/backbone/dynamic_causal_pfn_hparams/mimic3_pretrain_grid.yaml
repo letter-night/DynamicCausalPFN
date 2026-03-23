@@ -1,0 +1,45 @@
+# @package _global_
+# Hyperparameter grid for pretraining on synthetic MIMIC-style datasets
+# Note: seq_hidden_units and br_size are multipliers of input_size (=3 for mimic3_pretrain)
+# Note: fc_hidden_units are multipliers of computed br_size
+model:
+  dynamic_causal_pfn:
+    tune_hparams: True
+    tune_range: 20
+    hparams_grid:
+      num_layer:
+        - 6
+        - 8
+        - 10
+      num_heads:
+        - 4
+        - 8
+      learning_rate:
+        - 0.00005
+        - 0.0001
+      batch_size:
+        - 128
+        - 256
+      seq_hidden_units:
+        - 16
+        - 32
+        - 64
+      br_size:
+        - 16
+        - 32
+        - 64
+      fc_hidden_units:
+        - 2
+        - 4
+        - 8
+      dropout_rate:
+        - 0.1
+      gmm_n_components:
+        - 3
+        - 5
+    resources_per_trial:
+      cpu: 1
+      gpu: 0.5
+
+exp:
+  max_epochs: 20

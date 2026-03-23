@@ -1,4 +1,5 @@
 # @package _global_
+# Tuned on mimic3_synthetic (2026-03-22)
 dataset:
   max_number: 3000
 
@@ -7,9 +8,9 @@ model:
     optimizer:
       learning_rate: 0.001
     batch_size: 32
-    seq_hidden_units: 48
-    hr_size: 88
-    fc_hidden_units: 44
+    seq_hidden_units: 6
+    hr_size: 3
+    fc_hidden_units: 6
     dropout_rate: 0.1
     num_layer: 1
     num_heads: 3

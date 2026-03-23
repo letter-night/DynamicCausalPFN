@@ -39,8 +39,8 @@ model:
         - 0.1
         - 0.2
     resources_per_trial:
-      cpu: 2.0
-      gpu: 0.25
+      cpu: 0.4
+      gpu: 0.2
 
   decoder:
     tune_hparams: True
@@ -72,8 +72,8 @@ model:
         - 0.1
         - 0.2
     resources_per_trial:
-      cpu: 2.0
-      gpu: 0.25
+      cpu: 0.4
+      gpu: 0.2
 
 exp:
   max_epochs: 50

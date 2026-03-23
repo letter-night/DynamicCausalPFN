@@ -1,26 +1,27 @@
 # @package _global_
+# Tuned on mimic3_synthetic (2026-03-22)
 dataset:
   max_number: 3000
 
 model:
   encoder:
     optimizer:
-      learning_rate: 0.001
+      learning_rate: 0.01
     batch_size: 64
-    seq_hidden_units: 148
-    br_size: 148
-    fc_hidden_units: 296
+    seq_hidden_units: 12
+    br_size: 3
+    fc_hidden_units: 3
     dropout_rate: 0.1
     num_layer: 1
 
   train_decoder: True
   decoder:
     optimizer:
-      learning_rate: 0.0001
-    batch_size: 256
-    seq_hidden_units: 148
-    br_size: 98
-    fc_hidden_units: 98
+      learning_rate: 0.01
+    batch_size: 64
+    seq_hidden_units: 3
+    br_size: 3
+    fc_hidden_units: 3
     dropout_rate: 0.1
     num_layer: 1
 

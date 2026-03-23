@@ -1,10 +1,20 @@
 # @package _global_
+# Tuned on mimic3_synthetic (2026-03-22)
 dataset:
   max_number: 3000
 
 model:
   propensity_treatment:
-    seq_hidden_units: 1
+    seq_hidden_units: 12
+    dropout_rate: 0.2
+    num_layer: 2
+    batch_size: 128
+    max_grad_norm: 2.0
+    optimizer:
+      learning_rate: 0.0001
+
+  propensity_history:
+    seq_hidden_units: 3
     dropout_rate: 0.1
     num_layer: 1
     batch_size: 128
@@ -12,30 +22,21 @@ model:
     optimizer:
       learning_rate: 0.0001
 
-  propensity_history:
-    seq_hidden_units: 2
-    dropout_rate: 0.1
-    num_layer: 1
-    batch_size: 256
-    max_grad_norm: 2.0
-    optimizer:
-      learning_rate: 0.0001
-
   encoder:
-    seq_hidden_units: 20
+    seq_hidden_units: 6
     dropout_rate: 0.1
-    num_layer: 1
-    batch_size: 64
+    num_layer: 2
+    batch_size: 256
     max_grad_norm: 2.0
     optimizer:
       learning_rate: 0.01
 
   train_decoder: True
   decoder:
-    seq_hidden_units: 80
+    seq_hidden_units: 96
     dropout_rate: 0.2
-    num_layer: 2
-    batch_size: 1024
+    num_layer: 1
+    batch_size: 512
     max_grad_norm: 0.5
     optimizer:
       learning_rate: 0.0001
