@@ -1,17 +1,17 @@
 # @package _global_
-# Pretraining HPs from MIMIC GMM-NLL tuning (Trial 00003, rank 1: val_rmse=0.0287)
+# Pretraining HPs from MIMIC GMM-NLL tuning (rank 6: val_rmse=0.0352, 6.7M params)
 # Note: seq_hidden_units and br_size are multipliers of input_size (=3 for mimic3_pretrain)
 # Note: fc_hidden_units is a multiplier of computed br_size
-# Actual computed values: seq_hidden=48, br=192, fc=384
+# Actual computed values: seq_hidden=192, br=48, fc=192
 model:
   dynamic_causal_pfn:
     optimizer:
       learning_rate: 0.0001
     batch_size: 128
     num_layer: 6
-    seq_hidden_units: 16
-    br_size: 64
-    fc_hidden_units: 2
+    seq_hidden_units: 64
+    br_size: 16
+    fc_hidden_units: 4
     dropout_rate: 0.1
     num_heads: 8
     gmm_n_components: 5
